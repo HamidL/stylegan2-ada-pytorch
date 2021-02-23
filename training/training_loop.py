@@ -407,7 +407,8 @@ def training_loop(
             walltime = timestamp - start_time
             wandb.log({**stats_dict,
                        **{f"Metrics/{key}" for key, value in stats_metrics.items()},
-                       **{"Fake images": wandb.Image(image_grid(images, drange=[-1,1], grid_size=grid_size))}})
+                       **{"Fake images": wandb.Image(image_grid(images, drange=[-1,1], grid_size=grid_size))}},
+                      step=global_step)
             for name, value in stats_dict.items():
                 stats_tfevents.add_scalar(name, value.mean, global_step=global_step, walltime=walltime)
             for name, value in stats_metrics.items():

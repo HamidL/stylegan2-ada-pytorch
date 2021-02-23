@@ -16,6 +16,7 @@ import json
 import tempfile
 import torch
 import dnnlib
+import wandb
 
 from training import training_loop
 from metrics import metric_main
@@ -57,6 +58,10 @@ def setup_training_loop_kwargs(
     # Transfer learning.
     resume     = None, # Load previous network: 'noresume' (default), 'ffhq256', 'ffhq512', 'ffhq1024', 'celebahq256', 'lsundog256', <file>, <url>
     freezed    = None, # Freeze-D: <int>, default = 0 discriminator layers
+
+    # wandb
+    runname    = None, # wandb run name
+    resumeid   = None, # wandb run id (to resume logging)
 
     # Performance options (not included in desc).
     fp32       = None, # Disable mixed-precision training: <bool>, default = False
@@ -299,6 +304,18 @@ def setup_training_loop_kwargs(
     }
 
     assert resume is None or isinstance(resume, str)
+
+    if resume:
+        wandb.init(project="stylegan2",
+                   entity="phd-hamid",
+                   name=runname,
+                   resume=True,
+                   id=resumeid)
+    else:
+        wandb.init(project="stylegan2",
+                   entity="phd-hamid",
+                   name=runname)
+
     if resume is None:
         resume = 'noresume'
     elif resume == 'noresume':
@@ -427,6 +444,10 @@ class CommaSeparatedList(click.ParamType):
 # Transfer learning.
 @click.option('--resume', help='Resume training [default: noresume]', metavar='PKL')
 @click.option('--freezed', help='Freeze-D [default: 0 layers]', type=int, metavar='INT')
+
+# wandb
+@click.option('--resumeid', help='wandb run id (to resume logging)', type=str)
+@click.option('--runname', help='wandb run name', type=str, required=True)
 
 # Performance options.
 @click.option('--fp32', help='Disable mixed-precision training', type=bool, metavar='BOOL')
