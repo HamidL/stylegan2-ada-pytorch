@@ -82,8 +82,11 @@ class Logger(object):
         if len(text) == 0: # workaround for a bug in VSCode debugger: sys.stdout.write(''); sys.stdout.flush() => crash
             return
 
-        if self.file is not None:
-            self.file.write(text)
+        try:
+            if self.file is not None:
+                self.file.write(text)
+        except Exception:
+            pass
 
         self.stdout.write(text)
 
