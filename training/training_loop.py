@@ -16,6 +16,7 @@ import PIL.Image
 import numpy as np
 import torch
 import dnnlib
+import wandb
 from torch_utils import misc
 from torch_utils import training_stats
 from torch_utils.ops import conv2d_gradfix
@@ -65,7 +66,8 @@ def setup_snapshot_image_grid(training_set, random_seed=0):
 
 #----------------------------------------------------------------------------
 
-def save_image_grid(img, fname, drange, grid_size):
+
+def image_grid(img, drange, grid_size):
     lo, hi = drange
     img = np.asarray(img, dtype=np.float32)
     img = (img - lo) * (255 / (hi - lo))
@@ -79,9 +81,13 @@ def save_image_grid(img, fname, drange, grid_size):
 
     assert C in [1, 3]
     if C == 1:
-        PIL.Image.fromarray(img[:, :, 0], 'L').save(fname)
+        return PIL.Image.fromarray(img[:, :, 0], 'L')
     if C == 3:
-        PIL.Image.fromarray(img, 'RGB').save(fname)
+        return PIL.Image.fromarray(img, 'RGB')
+
+def save_image_grid(img, fname, drange, grid_size):
+    image_grid(img, drange, grid_size).save(fname)
+
 
 #----------------------------------------------------------------------------
 
@@ -281,6 +287,7 @@ def training_loop(
             for round_idx, (real_img, real_c, gen_z, gen_c) in enumerate(zip(phase_real_img, phase_real_c, phase_gen_z, phase_gen_c)):
                 sync = (round_idx == batch_size // (batch_gpu * num_gpus) - 1)
                 gain = phase.interval
+                # Execute both G and D, computes the losses and accumulates the gradients
                 loss.accumulate_gradients(phase=phase.name, real_img=real_img, real_c=real_c, gen_z=gen_z, gen_c=gen_c, sync=sync, gain=gain)
 
             # Update weights.
@@ -370,6 +377,7 @@ def training_loop(
         if (snapshot_data is not None) and (len(metrics) > 0):
             if rank == 0:
                 print('Evaluating metrics...')
+            # by default, the metric is fid50k_full
             for metric in metrics:
                 result_dict = metric_main.calc_metric(metric=metric, G=snapshot_data['G_ema'],
                     dataset_kwargs=training_set_kwargs, num_gpus=num_gpus, rank=rank, device=device)
@@ -397,6 +405,9 @@ def training_loop(
         if stats_tfevents is not None:
             global_step = int(cur_nimg / 1e3)
             walltime = timestamp - start_time
+            wandb.log({**stats_dict,
+                       **{f"Metrics/{key}" for key, value in stats_metrics.items()},
+                       **{"Fake images": image_grid(images, drange=[-1,1], grid_size=grid_size)}})
             for name, value in stats_dict.items():
                 stats_tfevents.add_scalar(name, value.mean, global_step=global_step, walltime=walltime)
             for name, value in stats_metrics.items():
