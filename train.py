@@ -103,6 +103,11 @@ def setup_training_loop_kwargs(
     assert isinstance(seed, int)
     args.random_seed = seed
 
+    # wandb
+    args.resume = resume
+    args.runName = runname
+    args.resumeId = resumeid
+
     # -----------------------------------
     # Dataset: data, cond, subset, mirror
     # -----------------------------------
@@ -305,17 +310,6 @@ def setup_training_loop_kwargs(
 
     assert resume is None or isinstance(resume, str)
 
-    if resume:
-        wandb.init(project="stylegan2",
-                   entity="phd-hamid",
-                   name=runname,
-                   resume=True,
-                   id=resumeid)
-    else:
-        wandb.init(project="stylegan2",
-                   entity="phd-hamid",
-                   name=runname)
-
     if resume is None:
         resume = 'noresume'
     elif resume == 'noresume':
@@ -395,6 +389,21 @@ def subprocess_fn(rank, args, temp_dir):
     training_stats.init_multiprocessing(rank=rank, sync_device=sync_device)
     if rank != 0:
         custom_ops.verbosity = 'none'
+    if rank == 0:
+        if args.resume:
+            wandb.init(project="stylegan2",
+                       entity="phd-hamid",
+                       name=args.runName,
+                       resume=True,
+                       id=args.resumeId)
+        else:
+            wandb.init(project="stylegan2",
+                       entity="phd-hamid",
+                       name=args.runName)
+    # these three arguments are not expected in the training_loop func; pop them out of the EasyDict
+    args.pop("resumeId")
+    args.pop("runName")
+    args.pop("resume")
 
     # Execute training loop.
     training_loop.training_loop(rank=rank, **args)
