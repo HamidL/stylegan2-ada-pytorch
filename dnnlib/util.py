@@ -85,10 +85,9 @@ class Logger(object):
         try:
             if self.file is not None:
                 self.file.write(text)
+            self.stdout.write(text)
         except Exception:
             pass
-
-        self.stdout.write(text)
 
         if self.should_flush:
             self.flush()
