@@ -21,6 +21,7 @@ from torch_utils import misc
 from torch_utils import training_stats
 from torch_utils.ops import conv2d_gradfix
 from torch_utils.ops import grid_sample_gradfix
+from flatten_dict import flatten
 
 import legacy
 from metrics import metric_main
@@ -405,8 +406,8 @@ def training_loop(
         if stats_tfevents is not None:
             global_step = int(cur_nimg / 1e3)
             walltime = timestamp - start_time
-            wandb.log({**stats_dict,
-                       **{f"Metrics/{key}" for key, value in stats_metrics.items()},
+            wandb.log({**flatten(stats_dict, reducer="path"),
+                       **flatten({f"Metrics/{key}" for key, value in stats_metrics.items()}, reducer="path"),
                        **{"Fake images": wandb.Image(image_grid(images, drange=[-1,1], grid_size=grid_size))}},
                       step=global_step)
             for name, value in stats_dict.items():

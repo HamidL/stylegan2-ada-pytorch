@@ -82,6 +82,8 @@ class Logger(object):
         if len(text) == 0: # workaround for a bug in VSCode debugger: sys.stdout.write(''); sys.stdout.flush() => crash
             return
 
+        # this try/exception is needed to prevent the death of the wandb process on boot (error detected in python 3.6,
+        # python 3.8 seems ok)
         try:
             if self.file is not None:
                 self.file.write(text)
