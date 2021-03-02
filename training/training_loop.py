@@ -258,6 +258,10 @@ def training_loop(
     tick_start_time = time.time()
     maintenance_time = tick_start_time - start_time
     batch_idx = 0
+    if (resume_pkl is not None) and (rank == 0):
+        cur_nimg = resume_data["iteration_stats"]["cur_nimg"]
+        cur_tick = resume_data["iteration_stats"]["cur_tick"]
+        batch_idx = resume_data["iteration_stats"]["batch_idx"]
     if progress_fn is not None:
         progress_fn(0, total_kimg)
     while True:
@@ -362,6 +366,7 @@ def training_loop(
         snapshot_data = None
         if (network_snapshot_ticks is not None) and (done or cur_tick % network_snapshot_ticks == 0):
             snapshot_data = dict(training_set_kwargs=dict(training_set_kwargs))
+            snapshot_data["iteration_stats"] = dict(cur_nimg=cur_nimg, cur_tick=cur_tick, batch_idx=batch_idx)
             for name, module in [('G', G), ('D', D), ('G_ema', G_ema), ('augment_pipe', augment_pipe)]:
                 if module is not None:
                     if num_gpus > 1:
@@ -381,7 +386,8 @@ def training_loop(
             # by default, the metric is fid50k_full
             for metric in metrics:
                 result_dict = metric_main.calc_metric(metric=metric, G=snapshot_data['G_ema'],
-                    dataset_kwargs=training_set_kwargs, num_gpus=num_gpus, rank=rank, device=device)
+                                                      dataset_kwargs=training_set_kwargs,  num_gpus=num_gpus, rank=rank,
+                                                      device=device)
                 if rank == 0:
                     metric_main.report_metric(result_dict, run_dir=run_dir, snapshot_pkl=snapshot_pkl)
                 stats_metrics.update(result_dict.results)
