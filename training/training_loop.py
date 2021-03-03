@@ -416,7 +416,7 @@ def training_loop(
             stats.update({f"Metrics/{key}": value for key, value in stats_metrics.items()})
             stats.update({"Fake images": wandb.Image(image_grid(images, drange=[-1, 1], grid_size=grid_size))})
             if rank == 0:
-                wandb.log(stats, step=global_step)
+                wandb.log(stats)
             for name, value in stats_dict.items():
                 stats_tfevents.add_scalar(name, value.mean, global_step=global_step, walltime=walltime)
             for name, value in stats_metrics.items():
