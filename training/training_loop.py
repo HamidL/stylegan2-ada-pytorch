@@ -161,6 +161,7 @@ def training_loop(
     # Resume from existing pickle.
     if (resume_pkl is not None) and (rank == 0):
         print(f'Resuming from "{resume_pkl}"')
+        resume_status = torch.load(f"{run_dir}/resume_status.pth")
         with dnnlib.util.open_url(resume_pkl) as f:
             resume_data = legacy.load_network_pkl(f)
         for name, module in [('G', G), ('D', D), ('G_ema', G_ema)]:
@@ -259,9 +260,9 @@ def training_loop(
     maintenance_time = tick_start_time - start_time
     batch_idx = 0
     if (resume_pkl is not None) and (rank == 0):
-        cur_nimg = resume_data["iteration_stats"]["cur_nimg"]
-        cur_tick = resume_data["iteration_stats"]["cur_tick"]
-        batch_idx = resume_data["iteration_stats"]["batch_idx"]
+        cur_nimg = resume_status["cur_nimg"]
+        cur_tick = resume_status["cur_tick"]
+        batch_idx = resume_status["batch_idx"]
     if progress_fn is not None:
         progress_fn(0, total_kimg)
     while True:
@@ -366,7 +367,6 @@ def training_loop(
         snapshot_data = None
         if (network_snapshot_ticks is not None) and (done or cur_tick % network_snapshot_ticks == 0):
             snapshot_data = dict(training_set_kwargs=dict(training_set_kwargs))
-            snapshot_data["iteration_stats"] = dict(cur_nimg=cur_nimg, cur_tick=cur_tick, batch_idx=batch_idx)
             for name, module in [('G', G), ('D', D), ('G_ema', G_ema), ('augment_pipe', augment_pipe)]:
                 if module is not None:
                     if num_gpus > 1:
@@ -381,6 +381,8 @@ def training_loop(
             if rank == 0:
                 with open(snapshot_pkl, 'wb') as f:
                     pickle.dump(snapshot_data, f)
+                torch.save(dict(cur_nimg=cur_nimg, cur_tick=cur_tick, batch_idx=batch_idx),
+                           os.path.join(run_dir, "resume_status.pth"))
 
         # Evaluate metrics.
         if (snapshot_data is not None) and (len(metrics) > 0):
@@ -415,10 +417,10 @@ def training_loop(
         if stats_tfevents is not None:
             global_step = int(cur_nimg / 1e3)
             walltime = timestamp - start_time
-            stats = flatten(stats_dict, reducer="path")
-            stats.update({f"Metrics/{key}": value for key, value in stats_metrics.items()})
-            stats.update({"Fake images": wandb.Image(image_grid(images, drange=[-1, 1], grid_size=grid_size))})
             if rank == 0:
+                stats = flatten(stats_dict, reducer="path")
+                stats.update({f"Metrics/{key}": value for key, value in stats_metrics.items()})
+                stats.update({"Fake images": wandb.Image(image_grid(images, drange=[-1, 1], grid_size=grid_size))})
                 wandb.log(stats)
             for name, value in stats_dict.items():
                 stats_tfevents.add_scalar(name, value.mean, global_step=global_step, walltime=walltime)
