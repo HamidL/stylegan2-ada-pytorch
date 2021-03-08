@@ -161,7 +161,7 @@ def training_loop(
     # Resume from existing pickle.
     if (resume_pkl is not None) and (rank == 0):
         print(f'Resuming from "{resume_pkl}"')
-        resume_status = torch.load(f"{run_dir}/resume_status.pth")
+        resume_status = torch.load(f"{os.path.dirname(resume_pkl)}/resume_status.pth")
         with dnnlib.util.open_url(resume_pkl) as f:
             resume_data = legacy.load_network_pkl(f)
         for name, module in [('G', G), ('D', D), ('G_ema', G_ema)]:
