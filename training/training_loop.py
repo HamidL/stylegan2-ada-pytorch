@@ -237,7 +237,6 @@ def training_loop(
     # Initialize logs.
     if rank == 0:
         print('Initializing logs...')
-    stats_collector = training_stats.Collector(regex='.*')
     stats_metrics = dict()
     stats_jsonl = None
     stats_tfevents = None
@@ -398,32 +397,19 @@ def training_loop(
                 stats_metrics.update(result_dict.results)
         del snapshot_data # conserve memory
 
-        # Collect statistics.
-        # for phase in phases:
-        #     value = []
-        #     if (phase.start_event is not None) and (phase.end_event is not None):
-        #         phase.end_event.synchronize()
-        #         value = phase.start_event.elapsed_time(phase.end_event)
-        #     training_stats.report0('Timing/' + phase.name, value)
-        stats_collector.update()
-        stats_dict = stats_collector.as_dict()
-
         # Update logs.
         timestamp = time.time()
         if stats_jsonl is not None:
-            fields = dict(stats_dict, timestamp=timestamp)
             stats_jsonl.write(json.dumps(fields) + '\n')
             stats_jsonl.flush()
         if stats_tfevents is not None:
             global_step = int(cur_nimg / 1e3)
             walltime = timestamp - start_time
             if rank == 0:
-                stats = flatten(stats_dict, reducer="path")
+                stats = dict()
                 stats.update({f"Metrics/{key}": value for key, value in stats_metrics.items()})
                 stats.update({"Fake images": wandb.Image(image_grid(images, drange=[-1, 1], grid_size=grid_size))})
                 wandb.log(stats)
-            for name, value in stats_dict.items():
-                stats_tfevents.add_scalar(name, value.mean, global_step=global_step, walltime=walltime)
             for name, value in stats_metrics.items():
                 stats_tfevents.add_scalar(f'Metrics/{name}', value, global_step=global_step, walltime=walltime)
             stats_tfevents.flush()
